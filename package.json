@@ -1,0 +1,15 @@
+{
+  "name": "sst-ion-waku",
+  "version": "0.1.0",
+  "description": "Waku SSR Site component for SST Ion",
+  "main": "src/waku.ts",
+  "scripts": {
+    "init": "sst init"
+  },
+  "author": "",
+  "license": "ISC",
+  "peerDependencies": {
+    "sst": "0.1.54",
+    "@pulumi/pulumi": "3.127.0"
+  }
+}
