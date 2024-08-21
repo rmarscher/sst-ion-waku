@@ -26,8 +26,21 @@ import { Component } from "../../.sst/platform/src/components/component.js";
 import { Link } from "../../.sst/platform/src/components/link.js";
 import { buildApp } from "../../.sst/platform/src/components/base/base-ssr-site.js";
 import { URL_UNAVAILABLE } from "../../.sst/platform/src/components/aws/linkable.js";
+import type { DevArgs } from "../../.sst/platform/src/components/dev.js";
 
 export interface WakuArgs extends SsrSiteArgs {
+  /**
+   * Configure how this component works in `sst dev`.
+   *
+   * :::note
+   * In `sst dev` your Remix app is run in dev mode; it's not deployed.
+   * :::
+   *
+   * Instead of deploying your Remix app, this starts it in dev mode. It's run
+   * as a separate process in the `sst dev` multiplexer. Read more about
+   * [`sst dev`](/docs/reference/cli/#dev).
+   */
+  dev?: DevArgs["dev"];
   /**
    * The number of instances of the [server function](#nodes-server) to keep warm. This is useful for cases where you are experiencing long cold starts. The default is to not keep any instances warm.
    *
@@ -413,7 +426,7 @@ export class Waku extends Component implements Link.Linkable {
     }
 
     const { access, bucket } = createBucket(this, name, partition, args);
-    const outputPath = buildApp(name, args, sitePath);
+    const outputPath = buildApp(this, name, args, sitePath, args.buildCommand);
     const plan = buildPlan();
     const { distribution, ssrFunctions, edgeFunctions } =
       createServersAndDistribution(
@@ -449,7 +462,6 @@ export class Waku extends Component implements Link.Linkable {
         const functionDir = "function";
         const publicDir = "public";
         const relativePublicDir = path.join(distDir, "public");
-        const absolutePublicDir = path.join(outputPath, relativePublicDir);
         const relativeFunctionDir = path.join(distDir, functionDir);
         const absoluteFunctionDir = path.join(outputPath, relativeFunctionDir);
         const versionedSubDir = "assets"; // waku places versioned files in public/assets

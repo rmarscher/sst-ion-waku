@@ -1,0 +1,160 @@
+diff --git a/dist/cli.js b/dist/cli.js
+index aaded42819feb6217872c21e6fd3f2e18cbb2737..09aed47aa1ca576ec2b8b602bb189f1fdf62c681 100644
+--- a/dist/cli.js
++++ b/dist/cli.js
+@@ -46,6 +46,9 @@ const { values, positionals } = parseArgs({
+         'with-aws-lambda': {
+             type: 'boolean'
+         },
++        'with-aws-lambda-sst': {
++            type: 'boolean'
++        },
+         'experimental-partial': {
+             type: 'boolean'
+         },
+@@ -114,7 +117,7 @@ async function runBuild() {
+         config,
+         env: process.env,
+         partial: !!values['experimental-partial'],
+-        deploy: (values['with-vercel'] ?? !!process.env.VERCEL ? values['with-vercel-static'] ? 'vercel-static' : 'vercel-serverless' : undefined) || (values['with-netlify'] ?? !!process.env.NETLIFY ? values['with-netlify-static'] ? 'netlify-static' : 'netlify-functions' : undefined) || (values['with-cloudflare'] ? 'cloudflare' : undefined) || (values['with-partykit'] ? 'partykit' : undefined) || (values['with-deno'] ? 'deno' : undefined) || (values['with-aws-lambda'] ? 'aws-lambda' : undefined)
++        deploy: (values['with-vercel'] ?? !!process.env.VERCEL ? values['with-vercel-static'] ? 'vercel-static' : 'vercel-serverless' : undefined) || (values['with-netlify'] ?? !!process.env.NETLIFY ? values['with-netlify-static'] ? 'netlify-static' : 'netlify-functions' : undefined) || (values['with-cloudflare'] ? 'cloudflare' : undefined) || (values['with-partykit'] ? 'partykit' : undefined) || (values['with-deno'] ? 'deno' : undefined) || (values['with-aws-lambda-sst'] ? 'aws-lambda-sst' : undefined) || (values['with-aws-lambda'] ? 'aws-lambda' : undefined)
+     });
+ }
+ async function runStart() {
+@@ -175,6 +178,7 @@ Options:
+   --with-partykit       Output for PartyKit on build
+   --with-deno           Output for Deno on build
+   --with-aws-lambda     Output for AWS Lambda on build
++  --with-aws-lambda-sst Output for AWS Lambda compatible with SST Ion on build
+   -p, --port            Port number for the server
+   -v, --version         Display the version number
+   -h, --help            Display this help message
+diff --git a/dist/lib/builder/build.d.ts b/dist/lib/builder/build.d.ts
+index 0dff6833b10cad88e2621247deb98e8c025e5843..aefb935aa70f7b25fe21508942a743160c038425 100644
+--- a/dist/lib/builder/build.d.ts
++++ b/dist/lib/builder/build.d.ts
+@@ -3,5 +3,5 @@ export declare function build(options: {
+     config: Config;
+     env?: Record<string, string>;
+     partial?: boolean;
+-    deploy?: 'vercel-static' | 'vercel-serverless' | 'netlify-static' | 'netlify-functions' | 'cloudflare' | 'partykit' | 'deno' | 'aws-lambda' | undefined;
++    deploy?: 'vercel-static' | 'vercel-serverless' | 'netlify-static' | 'netlify-functions' | 'cloudflare' | 'partykit' | 'deno' | 'aws-lambda' | 'aws-lambda-sst' | undefined;
+ }): Promise<void>;
+diff --git a/dist/lib/builder/build.js b/dist/lib/builder/build.js
+index 0184dd87e5d77e1364e5337c15982fd0af6e231e..a95e89288a5c10397c8475029fba6b26fd91d6f4 100644
+--- a/dist/lib/builder/build.js
++++ b/dist/lib/builder/build.js
+@@ -23,6 +23,7 @@ import { emitNetlifyOutput } from './output-netlify.js';
+ import { emitCloudflareOutput } from './output-cloudflare.js';
+ import { emitPartyKitOutput } from './output-partykit.js';
+ import { emitAwsLambdaOutput } from './output-aws-lambda.js';
++import { emitAwsLambdaSstOutput } from './output-aws-lambda-sst.js';
+ import { DIST_ENTRIES_JS, DIST_SERVE_JS, DIST_PUBLIC, DIST_ASSETS, DIST_SSR } from './constants.js';
+ // TODO this file and functions in it are too long. will fix.
+ // Upstream issue: https://github.com/rollup/rollup/issues/4699
+@@ -528,7 +529,7 @@ export async function build(options) {
+     const distEntriesFile = joinPath(rootDir, config.distDir, DIST_ENTRIES_JS);
+     const isNodeCompatible = options.deploy !== 'cloudflare' && options.deploy !== 'partykit' && options.deploy !== 'deno';
+     const { clientEntryFiles, serverEntryFiles, serverModuleFiles } = await analyzeEntries(rootDir, config);
+-    const serverBuildOutput = await buildServerBundle(rootDir, env, config, clientEntryFiles, serverEntryFiles, serverModuleFiles, (options.deploy === 'vercel-serverless' ? 'vercel' : false) || (options.deploy === 'netlify-functions' ? 'netlify' : false) || (options.deploy === 'cloudflare' ? 'cloudflare' : false) || (options.deploy === 'partykit' ? 'partykit' : false) || (options.deploy === 'deno' ? 'deno' : false) || (options.deploy === 'aws-lambda' ? 'aws-lambda' : false), isNodeCompatible, !!options.partial);
++    const serverBuildOutput = await buildServerBundle(rootDir, env, config, clientEntryFiles, serverEntryFiles, serverModuleFiles, (options.deploy === 'vercel-serverless' ? 'vercel' : false) || (options.deploy === 'netlify-functions' ? 'netlify' : false) || (options.deploy === 'cloudflare' ? 'cloudflare' : false) || (options.deploy === 'partykit' ? 'partykit' : false) || (options.deploy === 'deno' ? 'deno' : false) || (options.deploy === 'aws-lambda-sst' ? 'aws-lambda-sst' : false) || (options.deploy === 'aws-lambda' ? 'aws-lambda' : false), isNodeCompatible, !!options.partial);
+     await buildSsrBundle(rootDir, env, config, clientEntryFiles, serverEntryFiles, serverBuildOutput, isNodeCompatible, !!options.partial);
+     const clientBuildOutput = await buildClientBundle(rootDir, env, config, clientEntryFiles, serverEntryFiles, serverBuildOutput, !!options.partial);
+     const distEntries = await import(filePathToFileURL(distEntriesFile));
+@@ -552,5 +553,7 @@ export async function build(options) {
+         await emitPartyKitOutput(rootDir, config, DIST_SERVE_JS);
+     } else if (options.deploy === 'aws-lambda') {
+         await emitAwsLambdaOutput(config);
++    } else if (options.deploy === 'aws-lambda-sst') {
++        await emitAwsLambdaSstOutput(config);
+     }
+ }
+diff --git a/node_modules/waku/dist/lib/builder/output-aws-lambda-sst.d.ts b/dist/lib/builder/output-aws-lambda-sst.d.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..4843aa580425cc9a817267a165c6c5fe42d080f5
+--- /dev/null
++++ b/dist/lib/builder/output-aws-lambda-sst.d.ts
+@@ -0,0 +1,2 @@
++import type { ResolvedConfig } from '../config.js';
++export declare const emitAwsLambdaSstOutput: (config: ResolvedConfig) => Promise<void>;
+diff --git a/node_modules/waku/dist/lib/builder/output-aws-lambda-sst.js b/dist/lib/builder/output-aws-lambda-sst.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..13c9f916b0beb1bf5579e53ee2fbbf0001b671d7
+--- /dev/null
++++ b/dist/lib/builder/output-aws-lambda-sst.js
+@@ -0,0 +1,27 @@
++import path from 'node:path';
++import { cpSync, mkdirSync, readdirSync, renameSync, writeFileSync } from 'node:fs';
++import { DIST_ASSETS, DIST_PUBLIC } from './constants.js';
++export const emitAwsLambdaSstOutput = async (config)=>{
++    writeFileSync(path.join(config.distDir, 'package.json'), JSON.stringify({
++        type: 'module'
++    }, null, 2));
++    // Move the distDir so we can move files back to different locations
++    renameSync(config.distDir, '_dist');
++    mkdirSync(config.distDir);
++    const functionDir = path.join(config.distDir, "function");
++    const functionPublicDir = path.join(functionDir, DIST_PUBLIC);
++    const publicDir = path.join(config.distDir, "public");
++    // Move everything to the function folder
++    renameSync('_dist', functionDir);
++    // Then move the function public folder
++    renameSync(functionPublicDir, publicDir);
++    // Assume that any user files in public do not need to be bundled
++    // with the lambda function but it seems that the
++    // public/assets/*.js and css do.
++    mkdirSync(functionPublicDir);
++    const publicAssetsDir = path.join(publicDir, DIST_ASSETS);
++    const files = readdirSync(publicAssetsDir).filter((file)=>file.endsWith(".css") || file.endsWith(".js"));
++    for (const file of files){
++        cpSync(path.join(publicAssetsDir, file), path.join(functionPublicDir, DIST_ASSETS, file));
++    }
++};
+diff --git a/node_modules/waku/dist/lib/builder/serve-aws-lambda-sst.d.ts b/dist/lib/builder/serve-aws-lambda-sst.d.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..624930165a494ef102c432077a6179263df00053
+--- /dev/null
++++ b/dist/lib/builder/serve-aws-lambda-sst.d.ts
+@@ -0,0 +1,2 @@
++import { streamHandle } from 'hono/aws-lambda';
++export declare const handler: ReturnType<typeof streamHandle>;
+diff --git a/node_modules/waku/dist/lib/builder/serve-aws-lambda-sst.js b/dist/lib/builder/serve-aws-lambda-sst.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..f4c444182afa2ddf5f68bc9b85f9dffe915bcf3f
+--- /dev/null
++++ b/dist/lib/builder/serve-aws-lambda-sst.js
+@@ -0,0 +1,23 @@
++import path from 'node:path';
++import { existsSync, readFileSync } from 'node:fs';
++import { Hono } from 'hono';
++import { streamHandle } from 'hono/aws-lambda';
++import { runner } from '../hono/runner.js';
++const distDir = process.env?.WAKU_BUILD_DIST_DIR ?? '';
++const publicDir = import.meta.env.WAKU_CONFIG_PUBLIC_DIR;
++const loadEntries = ()=>import(import.meta.env.WAKU_ENTRIES_FILE);
++const env = process.env;
++const app = new Hono();
++app.use('*', runner({
++    cmd: 'start',
++    loadEntries,
++    env
++}));
++app.notFound(async (c)=>{
++    const file = path.join(distDir, publicDir, '404.html');
++    if (existsSync(file)) {
++        return c.html(readFileSync(file, 'utf8'), 404);
++    }
++    return c.text('404 Not Found', 404);
++});
++export const handler = streamHandle(app);
+diff --git a/dist/lib/plugins/vite-plugin-rsc-serve.d.ts b/dist/lib/plugins/vite-plugin-rsc-serve.d.ts
+index a02164edd815e511151a6678b7b361599340c762..4f629414d9952582cfd192e0057fe55486fe30ae 100644
+--- a/dist/lib/plugins/vite-plugin-rsc-serve.d.ts
++++ b/dist/lib/plugins/vite-plugin-rsc-serve.d.ts
+@@ -5,5 +5,5 @@ export declare function rscServePlugin(opts: {
+     distDir: string;
+     distPublic: string;
+     srcServeFile: string;
+-    serve: 'vercel' | 'netlify' | 'cloudflare' | 'partykit' | 'deno' | 'aws-lambda';
++    serve: 'vercel' | 'netlify' | 'cloudflare' | 'partykit' | 'deno' | 'aws-lambda-sst' | 'aws-lambda';
+ }): Plugin;

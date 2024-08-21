@@ -9,7 +9,11 @@
   "author": "",
   "license": "ISC",
   "peerDependencies": {
-    "sst": "0.1.54",
-    "@pulumi/pulumi": "3.127.0"
+    "@pulumi/pulumi": "3.115.2",
+    "sst": "3.0.70",
+    "waku": "0.21.0"
+  },
+  "patchedDependencies": {
+    "waku@0.21.0": "patches/waku@0.21.0.patch"
   }
 }
